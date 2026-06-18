@@ -89,6 +89,8 @@ function resetAnalysis() {
   currentData = null; allClauses = [];
   document.getElementById('fileInput').value = '';
   document.getElementById('contractPreview').textContent = '';
+  document.getElementById('outlineToggle').style.display = 'none';
+  document.getElementById('outlineTree').classList.add('hidden');
   show('heroSection'); hide('resultsSection'); hide('loadingState');
 }
 
@@ -103,6 +105,7 @@ function renderResults(data) {
   setText('rMeta', `${(data.full_text || '').split(/\s+/).length.toLocaleString()} words · ${allClauses.length} clauses extracted`);
 
   renderBanner(data);
+  renderOutline(data);
   renderClauses(allClauses);
   renderSummary(data.executive_summary || {});
   const pre = document.getElementById('contractPreview');
@@ -225,6 +228,132 @@ function copySummary() {
 }
 
 function printSummary() { window.print(); }
+
+// ─── Document Outline (client-side hierarchy) ─────────────────────────────────
+const HEADING_KEYWORDS = [
+  'whereas', 'witnesseth', 'now therefore', 'definitions',
+  'representations', 'warranties', 'covenants', 'indemnification',
+  'indemnity', 'termination', 'insurance', 'confidentiality',
+  'dispute', 'general', 'miscellaneous', 'scope', 'purpose',
+  'consideration', 'assignment', 'waiver', 'notices', 'signatures',
+  'background', 'recitals'
+];
+
+function detectHeadingLevel(text) {
+  if (!text || text.length >= 120) return 0;
+  const t = text.trim();
+  if (!t || t.endsWith(',')) return 0;
+
+  if (/^(article|section|clause|paragraph|exhibit|schedule|appendix)\s+(I|V|X|L|C|D|M|[0-9]+)[\.:]?\s/i.test(t)) return 1;
+
+  let m = t.match(/^(article|section|clause|paragraph)\s+(\d+(?:\.\d+)+)\b/i);
+  if (m) return Math.min(m[2].split('.').length, 6);
+
+  if (t === t.toUpperCase() && t.length > 8) return 1;
+
+  m = t.match(/^(\d+(?:\.\d+)*)\.?\s+\w/);
+  if (m) return Math.min(m[1].split('.').length, 6);
+
+  if (/^[IVXLCDM]+\.\s+\w/.test(t)) return 1;
+  if (/^\(?[a-z]\)\s+\w/.test(t)) return 3;
+  if (new RegExp('^(' + HEADING_KEYWORDS.join('|') + ')\\b', 'i').test(t)) return 1;
+
+  return 0;
+}
+
+function buildHierarchyFromText(fullText) {
+  const lines = fullText.split('\n');
+  const elements = [];
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i].trim();
+    if (!text) continue;
+    const level = detectHeadingLevel(text);
+    elements.push({ text, level, type: level > 0 ? 'heading' : 'paragraph' });
+  }
+
+  const sections = [];
+  const preamble = [];
+  const stack = [];
+
+  for (const el of elements) {
+    if (el.type === 'heading') {
+      const section = { heading: el, content: [], subsections: [] };
+      while (stack.length && stack[stack.length - 1].level >= el.level) stack.pop();
+      if (stack.length) stack[stack.length - 1].node.subsections.push(section);
+      else sections.push(section);
+      stack.push({ level: el.level, node: section });
+    } else {
+      if (stack.length) stack[stack.length - 1].node.content.push(el);
+      else preamble.push(el);
+    }
+  }
+
+  return { preamble, sections };
+}
+
+function toggleOutline() {
+  const tree = document.getElementById('outlineTree');
+  const btn = document.getElementById('outlineToggle');
+  const hidden = tree.classList.toggle('hidden');
+  btn.textContent = hidden ? '📑 Show Document Outline' : '📑 Hide Document Outline';
+}
+
+function scrollToHeading(text) {
+  const pre = document.getElementById('contractPreview');
+  const idx = pre.textContent.indexOf(text);
+  if (idx !== -1) {
+    show(pre);
+    document.getElementById('previewToggle').textContent = '📄 Hide Contract Text';
+    pre.focus();
+  }
+}
+
+function renderOutline(data) {
+  const toggle = document.getElementById('outlineToggle');
+  const tree = document.getElementById('outlineTree');
+  const fullText = data.full_text || '';
+  const h = buildHierarchyFromText(fullText);
+  if (!h.sections.length) {
+    toggle.style.display = 'none';
+    return;
+  }
+  toggle.style.display = '';
+  tree.innerHTML = buildOutlineHTML(h);
+  tree.classList.add('hidden');
+}
+
+function buildOutlineHTML(h) {
+  let html = '';
+  if (h.preamble && h.preamble.length) {
+    html += '<div class="ot-section"><div class="ot-node ot-preamble"><span class="ot-bullet">📋</span><span class="ot-text">Preamble (' + h.preamble.length + ' lines)</span></div></div>';
+  }
+  for (const s of h.sections) {
+    html += renderSectionNode(s);
+  }
+  return html;
+}
+
+function renderSectionNode(s) {
+  const hd = s.heading;
+  const level = Math.min(hd.level || 1, 6);
+  const label = 'L' + level;
+  const hasChildren = s.subsections && s.subsections.length > 0;
+  const hasContent = s.content && s.content.length > 0;
+
+  let html = '<div class="ot-section">';
+  html += '<div class="ot-node" onclick="scrollToHeading(' + JSON.stringify(hd.text) + ')">';
+  html += '<span class="ot-bullet l' + Math.min(level, 3) + '">' + label + '</span>';
+  html += '<span class="ot-text">' + (hasContent ? '<strong>' : '') + esc(hd.text) + (hasContent ? '</strong>' : '');
+  if (hasContent) html += ' <span style="color:var(--muted);font-size:0.85rem;">(' + s.content.length + ')</span>';
+  html += '</span></div>';
+  if (hasChildren) {
+    html += '<div class="ot-children">';
+    for (const sub of s.subsections) html += renderSectionNode(sub);
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
 
 // ─── Text Preview ─────────────────────────────────────────────────────────────
 function togglePreview() {
