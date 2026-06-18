@@ -115,10 +115,12 @@ Return the output in the strict schema provided.
 """
         
         contents = []
+        uploaded_file = None
         if is_scanned and file_bytes:
             # Use Gemini's File API to handle massive PDFs (stress test ready)
             import tempfile
             import os
+            import time
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                 tmp.write(file_bytes)
                 tmp_path = tmp.name
@@ -126,6 +128,16 @@ Return the output in the strict schema provided.
             try:
                 # Upload the document to Google's servers for processing (supports up to 2GB files)
                 uploaded_file = genai.upload_file(path=tmp_path, mime_type="application/pdf")
+                
+                # Wait for the file to be processed
+                while True:
+                    file_info = genai.get_file(uploaded_file.name)
+                    if file_info.state.name == "ACTIVE":
+                        break
+                    elif file_info.state.name == "FAILED":
+                        raise ValueError("Gemini failed to process the document.")
+                    time.sleep(2)
+                
                 contents.append(uploaded_file)
                 contents.append(prompt)
             finally:
@@ -134,18 +146,25 @@ Return the output in the strict schema provided.
             # Use extracted text
             contents.append(f"{prompt}\n\n--- CONTRACT TEXT ---\n{full_text}")
 
-        # Request structured JSON matching our Pydantic schema
-        response = model.generate_content(
-            contents,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                response_schema=ContractAnalysisResult,
-                temperature=0.1
+        try:
+            # Request structured JSON matching our Pydantic schema
+            response = model.generate_content(
+                contents,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=ContractAnalysisResult,
+                    temperature=0.1
+                )
             )
-        )
-        
-        # Parse output
-        return ContractAnalysisResult.parse_raw(response.text)
+            
+            # Parse output
+            return ContractAnalysisResult.parse_raw(response.text)
+        finally:
+            if uploaded_file:
+                try:
+                    genai.delete_file(uploaded_file.name)
+                except Exception:
+                    pass
 
     def compare_clauses_batch(self, contracts_data: List[Dict[str, Any]], clause_type: str) -> Dict[str, Any]:
         """
