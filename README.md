@@ -47,14 +47,21 @@ graph TD
 ### Option A: Running with Docker (Recommended)
 Docker ensures all layout parsers and system dependencies build identically.
 
-1. **Clone the repository and set your API Key**:
+#### Using Docker Compose (if installed):
+1. **Spin up the stack**:
    ```bash
-   export GEMINI_API_KEY="your-actual-gemini-api-key"
+   docker compose up --build -d
    ```
+   *(Or `docker-compose up --build -d` on older installations).*
 
-2. **Spin up the stack**:
+#### Using direct Docker commands (Alternative):
+1. **Build the image**:
    ```bash
-   docker-compose up --build -d
+   docker build -t legal-ai-app .
+   ```
+2. **Run the container**:
+   ```bash
+   docker run -d --name legal_ai_app -p 8000:8000 --env-file .env legal-ai-app
    ```
 
 3. **Access the application**:
@@ -103,7 +110,7 @@ To make it easy to verify the success metrics, three pre-seeded test contracts a
 3. `consulting_service_agreement.docx`: A standard consulting contract.
 
 ### Step-by-Step Test Procedure:
-1. **API Activation**: Go to **Baseline Settings** in the dashboard and input your Gemini API Key.
+1. **API Activation**: Go to **Settings** in the dashboard and input your API Key.
 2. **Standard Agreement Test**: Upload `standard_partnership_agreement.docx`.
    - *Verify*: The dashboard shows a Low/Medium overall risk score (under 30%).
    - *Verify*: Extracted clauses are mostly flagged as **Favourable** or **Standard**.
