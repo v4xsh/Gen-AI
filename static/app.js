@@ -88,8 +88,7 @@ function showHero() { clearSteps(); hide('loadingState'); show('heroSection'); h
 function resetAnalysis() {
   currentData = null; allClauses = [];
   document.getElementById('fileInput').value = '';
-  document.getElementById('contractPreview').textContent = '';
-  document.getElementById('outlineToggle').style.display = 'none';
+  document.getElementById('contractPreview').textContent = ''  document.getElementById('outlineToggle').style.display = 'none';
   document.getElementById('outlineTree').classList.add('hidden');
   show('heroSection'); hide('resultsSection'); hide('loadingState');
 }
