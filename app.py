@@ -80,10 +80,10 @@ async def analyze_contract(file: UploadFile = File(...)):
         ANALYZED_CONTRACTS[file.filename] = analysis_result
         return analysis_result
     except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
+        return JSONResponse(status_code=400, content={"error": str(ve)})
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to analyze contract: {str(e)}")
+        return JSONResponse(status_code=500, content={"error": f"Failed to analyze contract: {str(e)}"})
 
 @app.get("/api/contracts")
 async def get_contracts():
@@ -115,9 +115,9 @@ async def delete_contract(filename: str):
 async def compare_contracts(payload: ComparePayload):
     missing = [f for f in payload.filenames if f not in ANALYZED_CONTRACTS]
     if missing:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail=f"These contracts are missing from session: {', '.join(missing)}"
+            content={"error": f"These contracts are missing from session: {', '.join(missing)}"}
         )
     contracts_to_compare = [ANALYZED_CONTRACTS[name] for name in payload.filenames]
     try:
@@ -125,7 +125,7 @@ async def compare_contracts(payload: ComparePayload):
         return comparison
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Comparison failed: {str(e)}")
+        return JSONResponse(status_code=500, content={"error": f"Comparison failed: {str(e)}"})
 
 # ─── Demo Data ────────────────────────────────────────────────────────────────
 @app.get("/api/demo")
