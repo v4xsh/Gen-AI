@@ -106,11 +106,51 @@ function renderResults(data) {
 
   renderBanner(data);
   renderOutline(data);
+  matchClausesToSections(allClauses, data.full_text);
   renderClauses(allClauses);
   renderSummary(data.executive_summary || {});
   const pre = document.getElementById('contractPreview');
   pre.textContent = (data.full_text || '').substring(0, 3000) + (data.full_text?.length > 3000 ? '\n…' : '');
   toast('✅ Analysis complete!', 'success');
+}
+
+// ─── Match Clauses to Sections ────────────────────────────────────────────────
+function normWs(s) {
+  return String(s).replace(/\s+/g, ' ').trim();
+}
+
+function matchClausesToSections(clauses, fullText) {
+  if (!clauses || !fullText) return;
+
+  const normFull = normWs(fullText);
+
+  // Build a flat sorted list of headings with normalized positions
+  const lines = fullText.split('\n');
+  const headings = [];
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (!t) continue;
+    const level = detectHeadingLevel(t);
+    if (level > 0) {
+      const pos = normFull.indexOf(normWs(t));
+      if (pos >= 0) headings.push({ text: t, pos, level });
+    }
+  }
+  if (!headings.length) return;
+  headings.sort((a, b) => a.pos - b.pos);
+
+  // For each clause, find the nearest heading before it
+  for (const c of clauses) {
+    const clausePos = normFull.indexOf(normWs(c.clause_text || ''));
+    if (clausePos === -1) continue;
+
+    let parent = null;
+    for (const h of headings) {
+      if (h.pos < clausePos) parent = h;
+      else break;
+    }
+    c.parentSection = parent ? parent.text : null;
+  }
 }
 
 // ─── Risk Banner ──────────────────────────────────────────────────────────────
@@ -170,6 +210,7 @@ function clauseCard(c, idx) {
         <span class="cc-flag ${badgeClass}">${esc(dev)}</span>
       </div>
       <div class="cc-title">${esc(c.clause_type)}</div>
+      ${c.parentSection ? `<div class="cc-parent">📍 ${esc(c.parentSection)}</div>` : ''}
       <div class="cc-exp">${esc(c.comparison_explanation || '')}</div>
       <div class="cc-foot">
         <div class="cc-score">
