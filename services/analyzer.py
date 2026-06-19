@@ -81,6 +81,8 @@ class ContractAnalyzerService:
         result_dict["filename"] = doc_data["filename"]
         result_dict["is_scanned"] = doc_data["is_scanned"]
         result_dict["full_text"] = doc_data["full_text"]
+        result_dict["elements"] = doc_data["elements"]
+        result_dict["hierarchy"] = doc_data["hierarchy"]
         
         # Aggregate Risk Counts
         risk_counts = {"Low": 0, "Medium": 0, "High": 0}
