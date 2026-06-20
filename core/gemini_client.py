@@ -158,7 +158,14 @@ Return the output in the strict schema provided.
             )
             
             # Parse output
-            return ContractAnalysisResult.parse_raw(response.text)
+            resp_text = response.text.strip()
+            if resp_text.startswith("```json"):
+                resp_text = resp_text[7:]
+            elif resp_text.startswith("```"):
+                resp_text = resp_text[3:]
+            if resp_text.endswith("```"):
+                resp_text = resp_text[:-3]
+            return ContractAnalysisResult.parse_raw(resp_text.strip())
         finally:
             if uploaded_file:
                 try:
