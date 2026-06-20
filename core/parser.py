@@ -22,7 +22,7 @@ def parse_docx(file_bytes: bytes) -> list:
             text.lower().startswith("article") or 
             text.lower().startswith("clause") or
             (text[0].isdigit() if text else False)
-        ) and text.endswith((".", ":", "")) and not text.endswith(","))
+        ) and not text.endswith(","))
         
         elements.append({
             "index": len(elements),
